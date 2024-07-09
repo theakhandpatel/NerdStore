@@ -6,10 +6,36 @@ import (
 	"time"
 
 	"github.com/theakhandpatel/NerdStore/internal/data"
+	"github.com/theakhandpatel/NerdStore/internal/validator"
 )
 
 func (app *application) createResourceHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "create a new movie")
+	var input struct {
+		Title string   `json:"title"`
+		Link  string   `json:"link"`
+		Tags  []string `json:"tags"`
+	}
+
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	resource := &data.Resource{
+		Title: input.Title,
+		Link:  input.Link,
+		Tags:  input.Tags,
+	}
+
+	v := validator.New()
+
+	if data.ValidateResource(v, resource); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	fmt.Fprintf(w, "%+v\n", input)
 }
 
 func (app *application) showResourcesHandler(w http.ResponseWriter, r *http.Request) {

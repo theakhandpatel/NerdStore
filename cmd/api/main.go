@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 const version = "1.0.0"
@@ -14,6 +18,9 @@ const version = "1.0.0"
 type config struct {
 	port int
 	env  string
+	db   struct {
+		dsn string
+	}
 }
 
 type application struct {
@@ -22,19 +29,29 @@ type application struct {
 }
 
 func main() {
+
 	var cfg config
 
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
-	flag.Parse()
+	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("RESOURCER_DB_DSN"), "PostgreSQL DSN")
 
+	flag.Parse()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	db, err := openDB(cfg)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	logger.Info("database connection pool established")
 
 	app := &application{
 		config: cfg,
 		logger: logger,
 	}
-
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.port),
 		Handler:      app.routes(),
@@ -45,7 +62,23 @@ func main() {
 	}
 
 	logger.Info("starting server", "addr", srv.Addr, "env", cfg.env)
-	err := srv.ListenAndServe()
+	err = srv.ListenAndServe()
 	logger.Error(err.Error())
 	os.Exit(1)
+}
+
+func openDB(cfg config) (*pgxpool.Pool, error) {
+	dbpool, err := pgxpool.New(context.Background(), cfg.db.dsn)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = dbpool.Ping(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return dbpool, nil
 }

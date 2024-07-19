@@ -1,9 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/theakhandpatel/NerdStore/internal/data"
 	"github.com/theakhandpatel/NerdStore/internal/validator"
@@ -35,7 +35,18 @@ func (app *application) createResourceHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	fmt.Fprintf(w, "%+v\n", input)
+	err = app.models.Resources.Insert(resource)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	headers := make(http.Header)
+	headers.Set("Location", fmt.Sprintf("/v1/resources/%d", resource.ID))
+	err = app.writeJSON(w, http.StatusCreated, envelope{"resource": resource}, headers)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }
 
 func (app *application) showResourcesHandler(w http.ResponseWriter, r *http.Request) {
@@ -45,13 +56,15 @@ func (app *application) showResourcesHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	resource := data.Resource{
-		ID:        id,
-		CreatedAt: time.Now(),
-		Title:     "Golang intro",
-		Link:      "www.golang.com",
-		Tags:      []string{"backend", "go"},
-		Version:   1,
+	resource, err := app.models.Resources.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"resource": resource}, nil)

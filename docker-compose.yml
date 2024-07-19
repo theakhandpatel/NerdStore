@@ -1,0 +1,38 @@
+version: '3.7'
+
+services:
+  resourcedb:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: resourcer
+      POSTGRES_PASSWORD: pa55word
+      POSTGRES_DB: resourcedb
+    ports:
+      - "7000:5432"
+    volumes:
+      - resourcedb_data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: root
+    ports:
+      - "5050:80"
+    depends_on:
+      - resourcedb  
+
+
+  migrator:
+    image: migrate/migrate
+    volumes:
+      - ./migrations:/migrations
+    command: ["-path=/migrations/", "-database", "postgresql://resourcer:pa55word@resourcedb:5432/resourcedb?sslmode=disable", "up"]
+    environment:
+      WAIT_HOSTS: resourcedb:5432
+    depends_on:
+      - resourcedb
+      - pgadmin
+
+volumes:
+  resourcedb_data:

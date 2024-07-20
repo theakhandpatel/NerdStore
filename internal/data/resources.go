@@ -74,9 +74,40 @@ func (r ResourceModel) Get(id int64) (*Resource, error) {
 }
 
 func (r ResourceModel) Update(resource *Resource) error {
-	return nil
+	query := `
+		UPDATE resources
+		SET title = $1, link = $2, tags=$3, version = version + 1
+		WHERE id = $4
+		RETURNING version`
+
+	args := []any{
+		resource.Title,
+		resource.Link,
+		pq.Array(resource.Tags),
+		resource.ID,
+	}
+
+	return r.DB.QueryRow(query, args...).Scan(&resource.Version)
+
 }
 
 func (r ResourceModel) Delete(id int64) error {
+	query := `
+		DELETE FROM resources
+		WHERE id = $1`
+
+	result, err := r.DB.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
 	return nil
 }

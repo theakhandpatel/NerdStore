@@ -49,7 +49,7 @@ func (app *application) createResourceHandler(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func (app *application) showResourcesHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) showResourceHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := app.readIDParam(r)
 	if err != nil {
 		app.notFoundResponse(w, r)
@@ -68,6 +68,82 @@ func (app *application) showResourcesHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"resource": resource}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) updateResourceHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	resource, err := app.models.Resources.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	var input struct {
+		Title string   `json:"title"`
+		Link  string   `json:"link"`
+		Tags  []string `json:"tags"`
+	}
+
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	resource.Title = input.Title
+	resource.Link = input.Link
+	resource.Tags = input.Tags
+
+	v := validator.New()
+	if data.ValidateResource(v, resource); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	err = app.models.Resources.Update(resource)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"resource": resource}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) deleteResourceHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	err = app.models.Resources.Delete(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusNoContent, nil, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

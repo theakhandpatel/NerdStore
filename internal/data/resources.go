@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/lib/pq"
@@ -12,7 +13,7 @@ import (
 
 type Resource struct {
 	ID        int64     `json:"id"`
-	CreatedAt time.Time `json:"-"`
+	CreatedAt time.Time `json:"created_at"`
 	Title     string    `json:"title,omitempty"`
 	Link      string    `json:"link"`
 	Tags      []string  `json:"tags,omitempty"`
@@ -79,27 +80,33 @@ func (r ResourceModel) Get(id int64) (*Resource, error) {
 	return &resource, nil
 }
 
-func (r ResourceModel) GetAll(title string, tags []string, filters Filters) ([]*Resource, error) {
-	query := `
-		SELECT id, created_at, title, link, tags, version
+func (r ResourceModel) GetAll(title string, tags []string, filters Filters) ([]*Resource, Metadata, error) {
+	query := fmt.Sprintf(`
+		SELECT count(*) OVER(), id, created_at, title, link, tags, version
 		FROM resources
-		ORDER BY id`
+		WHERE 
+		(to_tsvector('simple',title) @@ plainto_tsquery('simple', $1) OR $1 = '')
+		AND (tags @> $2 OR $2= '{}')
+		ORDER BY %s %s, id ASC
+		LIMIT $3 OFFSET $4`, filters.Sort, filters.Order)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := r.DB.QueryContext(ctx, query)
+	args := []any{title, pq.Array(tags), filters.limit(), filters.offset()}
+	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 	defer rows.Close()
 
 	resources := []*Resource{}
-
+	totalRecords := 0
 	for rows.Next() {
 		var resource Resource
 
 		err := rows.Scan(
+			&totalRecords,
 			&resource.ID,
 			&resource.CreatedAt,
 			&resource.Title,
@@ -108,16 +115,18 @@ func (r ResourceModel) GetAll(title string, tags []string, filters Filters) ([]*
 			&resource.Version,
 		)
 		if err != nil {
-			return nil, err
+			return nil, Metadata{}, err
 		}
 
 		resources = append(resources, &resource)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
-	return resources, nil
+
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+	return resources, metadata, nil
 }
 
 func (r ResourceModel) Update(resource *Resource) error {

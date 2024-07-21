@@ -184,13 +184,13 @@ func (app *application) listResourcesHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	resources, err := app.models.Resources.GetAll(input.Title, input.Tags, input.Filters)
+	resources, metadata, err := app.models.Resources.GetAll(input.Title, input.Tags, input.Filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"resources": resources}, nil)
+	err = app.writeJSON(w, http.StatusOK, envelope{"resources": resources, "metadata": metadata}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

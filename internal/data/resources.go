@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -42,7 +43,9 @@ func (r ResourceModel) Insert(resource *Resource) error {
 
 	args := []any{resource.Title, resource.Link, pq.Array(resource.Tags)}
 
-	return r.DB.QueryRow(query, args...).Scan(&resource.ID, &resource.CreatedAt, &resource.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return r.DB.QueryRowContext(ctx, query, args...).Scan(&resource.ID, &resource.CreatedAt, &resource.Version)
 }
 
 func (r ResourceModel) Get(id int64) (*Resource, error) {
@@ -52,7 +55,10 @@ func (r ResourceModel) Get(id int64) (*Resource, error) {
 		WHERE id = $1`
 
 	var resource Resource
-	err := r.DB.QueryRow(query, id).Scan(
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err := r.DB.QueryRowContext(ctx, query, id).Scan(
 		&resource.ID,
 		&resource.CreatedAt,
 		&resource.Title,
@@ -87,8 +93,9 @@ func (r ResourceModel) Update(resource *Resource) error {
 		resource.ID,
 		resource.Version,
 	}
-
-	err := r.DB.QueryRow(query, args...).Scan(&resource.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err := r.DB.QueryRowContext(ctx, query, args...).Scan(&resource.Version)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -106,7 +113,9 @@ func (r ResourceModel) Delete(id int64) error {
 		DELETE FROM resources
 		WHERE id = $1`
 
-	result, err := r.DB.Exec(query, id)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, err := r.DB.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}

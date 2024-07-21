@@ -79,6 +79,47 @@ func (r ResourceModel) Get(id int64) (*Resource, error) {
 	return &resource, nil
 }
 
+func (r ResourceModel) GetAll(title string, tags []string, filters Filters) ([]*Resource, error) {
+	query := `
+		SELECT id, created_at, title, link, tags, version
+		FROM resources
+		ORDER BY id`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := r.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	resources := []*Resource{}
+
+	for rows.Next() {
+		var resource Resource
+
+		err := rows.Scan(
+			&resource.ID,
+			&resource.CreatedAt,
+			&resource.Title,
+			&resource.Link,
+			pq.Array(&resource.Tags),
+			&resource.Version,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		resources = append(resources, &resource)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return resources, nil
+}
+
 func (r ResourceModel) Update(resource *Resource) error {
 	query := `
 		UPDATE resources

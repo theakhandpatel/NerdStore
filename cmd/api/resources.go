@@ -158,3 +158,40 @@ func (app *application) deleteResourceHandler(w http.ResponseWriter, r *http.Req
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) listResourcesHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Title string
+		Link  string
+		Tags  []string
+		data.Filters
+	}
+
+	v := validator.New()
+
+	qs := r.URL.Query()
+
+	input.Title = app.readString(qs, "title", "")
+	input.Tags = app.readCSV(qs, "tags", []string{})
+	input.Filters.Page = app.readInt(qs, "page", 1, v)
+	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
+	input.Filters.Sort = app.readString(qs, "sort", "id")
+	input.Filters.Order = app.readString(qs, "order", "ASC")
+	input.Filters.SortSafelist = []string{"id", "title", "created_at"}
+
+	if data.ValidateFilters(v, input.Filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	resources, err := app.models.Resources.GetAll(input.Title, input.Tags, input.Filters)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"resources": resources}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

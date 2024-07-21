@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS resources (
     created_at timestamp(0) with time zone NOT NULL DEFAULT NOW(),
     title text NOT NULL,
     link text NOT NULL,
-    tags text[] NOT NULL,
+    tags text[],
     version integer NOT NULL DEFAULT 1
 );
 

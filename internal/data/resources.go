@@ -77,7 +77,7 @@ func (r ResourceModel) Update(resource *Resource) error {
 	query := `
 		UPDATE resources
 		SET title = $1, link = $2, tags=$3, version = version + 1
-		WHERE id = $4
+		WHERE id = $4 AND version = $5
 		RETURNING version`
 
 	args := []any{
@@ -85,9 +85,19 @@ func (r ResourceModel) Update(resource *Resource) error {
 		resource.Link,
 		pq.Array(resource.Tags),
 		resource.ID,
+		resource.Version,
 	}
 
-	return r.DB.QueryRow(query, args...).Scan(&resource.Version)
+	err := r.DB.QueryRow(query, args...).Scan(&resource.Version)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return ErrEditConflict
+		default:
+			return err
+		}
+	}
+	return nil
 
 }
 

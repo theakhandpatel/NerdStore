@@ -92,8 +92,8 @@ func (app *application) updateResourceHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	var input struct {
-		Title string   `json:"title"`
-		Link  string   `json:"link"`
+		Title *string  `json:"title"`
+		Link  *string  `json:"link"`
 		Tags  []string `json:"tags"`
 	}
 
@@ -102,10 +102,15 @@ func (app *application) updateResourceHandler(w http.ResponseWriter, r *http.Req
 		app.badRequestResponse(w, r, err)
 		return
 	}
-
-	resource.Title = input.Title
-	resource.Link = input.Link
-	resource.Tags = input.Tags
+	if input.Title != nil {
+		resource.Title = *input.Title
+	}
+	if input.Link != nil {
+		resource.Link = *input.Link
+	}
+	if input.Tags != nil {
+		resource.Tags = input.Tags
+	}
 
 	v := validator.New()
 	if data.ValidateResource(v, resource); !v.Valid() {
@@ -115,7 +120,12 @@ func (app *application) updateResourceHandler(w http.ResponseWriter, r *http.Req
 
 	err = app.models.Resources.Update(resource)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 

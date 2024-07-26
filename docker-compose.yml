@@ -1,21 +1,21 @@
-version: '2.4'
+version: '3.3'
 
 services:
   resourcedb:
     image: postgres:latest
     environment:
-      POSTGRES_USER: resourcer
-      POSTGRES_PASSWORD: pa55word
-      POSTGRES_DB: resourcedb
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "7000:5432"
+      - "5432:5432"
     volumes:
       - resourcedb_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
 
   migrate:
@@ -23,9 +23,8 @@ services:
     volumes:
       - ./migrations:/migrations
     depends_on:
-      resourcedb:
-        condition: service_healthy
-    command: ["-path", "/migrations", "-database", "postgres://resourcer:pa55word@resourcedb:5432/resourcedb?sslmode=disable", "up"]
+      - resourcedb
+    command: ["-path", "/migrations", "-database", "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@resourcedb:5432/${POSTGRES_DB}?sslmode=disable", "up"]
 
 volumes:
   resourcedb_data:

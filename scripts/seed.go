@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	apiURL = "http://localhost:4000/v1/resources"
+	apiURL = "http://localhost:8080/v1/resources"
 )
 
 var (
